@@ -62,7 +62,7 @@ async function tomlDownload(path, destDir) {
 }
 
 ipcMain.handle('openPath', (event, path) => {
-    shell.openPath(path)
+    return shell.openPath(path)
 })
 
 ipcMain.handle('getInstancePath', () => {
