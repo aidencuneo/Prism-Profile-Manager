@@ -281,7 +281,6 @@ ipcMain.handle('importModpack', async () => {
 })
 
 watch(instancePath, (eventType, filename) => {
-    console.log(eventType, filename)
     mainWindow.webContents.send('instances-updated')
 })
 

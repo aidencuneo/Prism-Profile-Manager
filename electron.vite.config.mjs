@@ -13,8 +13,8 @@ export default defineConfig({
           index: resolve(__dirname, 'src/renderer/index.html'),
           import: resolve(__dirname, 'src/renderer/import.html'),
           export: resolve(__dirname, 'src/renderer/export.html'),
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 })
