@@ -7,8 +7,7 @@
     let instances = $state([]);
 
     async function importModpack() {
-        let res = await api.importModpack();
-        alert(res);
+        await api.importModpack();
     }
 
     onMount(async () => {

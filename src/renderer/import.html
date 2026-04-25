@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>(0%) Exporting...</title>
+    <title>(0%) Importing...</title>
     <link rel="stylesheet" href="./index.css">
 
     <style>
@@ -59,32 +59,26 @@ const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
 const modpackName = urlParams.get('name');
 const modpackPath = urlParams.get('path');
-const modpackParentPath = modpackPath.substring(
-    0,
-    Math.max(
-        modpackPath.lastIndexOf('/'),
-        modpackPath.lastIndexOf('\\'),
-    ),
-);
 
 const titleElem = document.getElementById('title');
 const progressBgDiv = document.getElementById('progress-bg');
 const progressTextDiv = document.getElementById('progress-text');
 const finishMsgDiv = document.getElementById('finish-msg');
 
-titleElem.textContent = `Exporting ${modpackName}...`;
-document.title = `(0%) Exporting ${modpackName}...`;
+titleElem.textContent = `Importing ${modpackName}...`;
+document.title = `(0%) Importing ${modpackName}...`;
 
-window.api.onExportProgress(progress => {
+window.api.onImportProgress(progress => {
     let roundedProgress = Math.round(1000 * progress) / 10;
 
-    document.title = `(${roundedProgress}%) Exporting ${modpackName}... `;
+    document.title = `(${roundedProgress}%) Importing ${modpackName}... `;
     progressTextDiv.textContent = roundedProgress + '%';
     progressBgDiv.style.width = roundedProgress + '%';
-
-    if (progress >= 1)
-        finishMsgDiv.innerHTML = `Exported to: <a onclick="window.api.openPath(modpackParentPath)">${modpackPath}</a>`;
 });
+
+window.api.onImportMsg(msg => {
+    finishMsgDiv.innerHTML = msg;
+})
     </script>
 </body>
 </html>

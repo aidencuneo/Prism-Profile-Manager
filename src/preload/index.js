@@ -7,7 +7,9 @@ const api = {
     getInstances: () => ipcRenderer.invoke('getInstances'),
     importModpack: () => ipcRenderer.invoke('importModpack'),
     exportModpack: name => ipcRenderer.invoke('exportModpack', name),
+    onImportProgress: callback => ipcRenderer.on('import-progress', (event, progress) => callback(progress)),
     onExportProgress: callback => ipcRenderer.on('export-progress', (event, progress) => callback(progress)),
+    onImportMsg: callback => ipcRenderer.on('import-msg', (event, msg) => callback(msg)),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

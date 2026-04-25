@@ -15,26 +15,48 @@ let instancePath = join(homedir(), 'AppData/Roaming/PrismLauncher/instances')
 let downloadsPath = join(homedir(), 'Downloads')
 
 async function readdir(path) {
-    return await fs.readdir(path, { withFileTypes: true })
+    try {
+        return await fs.readdir(path, { withFileTypes: true })
+    } catch (e) {
+        console.error(e);
+        return [];
+    }
 }
 
 function getTOMLObject(text) {
-    let obj = {};
+    let obj = {}
 
     for (let line of text.split('\n')) {
-        key = line.substring(0, line.indexOf('=')).trim();
-        value = eval(line.substring(line.indexOf('=') + 1).trim());
+        if (line.startsWith('[') || !line.includes('='))
+            continue
 
-        obj[key] = value;
+        let key = line.substring(0, line.indexOf('=')).trim()
+        let value = eval(line.substring(line.indexOf('=') + 1).trim())
+
+        obj[key] = value
     }
 
-    return obj;
+    return obj
 }
 
-async function download(url, path) {
+async function download(url, filepath) {
     const file = await fetch(url)
     const buffer = await file.arrayBuffer()
-    await fs.writeFile(path, Buffer.from(buffer))
+    await fs.writeFile(filepath, Buffer.from(buffer))
+}
+
+async function curseforgeDownload(projectID, fileID, filepath) {
+    await download(`https://www.curseforge.com/api/v1/mods/${projectID}/files/${fileID}/download`, filepath)
+}
+
+async function tomlDownload(path, destDir) {
+    let data = getTOMLObject(await fs.readFile(path, 'utf-8'))
+    let destFile = join(destDir, data.filename);
+
+    if (data.mode == 'url' || data.url)
+        await download(data.url, destFile)
+    else if (data.mode.includes('curseforge'))
+        await curseforgeDownload(data['project-id'], data['file-id'], destFile)
 }
 
 ipcMain.handle('openPath', (event, path) => {
@@ -149,8 +171,6 @@ ipcMain.handle('exportModpack', async (event, name) => {
 })
 
 ipcMain.handle('importModpack', async () => {
-    console.log('Importing modpack...')
-
     const result = await dialog.showOpenDialog({
         defaultPath: downloadsPath,
         properties: ['openFile'],
@@ -163,6 +183,28 @@ ipcMain.handle('importModpack', async () => {
     let zipPath = result.filePaths[0]
     let name = zipPath.split(/\/|\\/).pop().split('.')[0]
     let newPath = join(instancePath, name)
+    let newName = name // This can be modified
+
+    // Open new window to show import details
+    const win = new BrowserWindow({
+        width: 600,
+        height: 200,
+        show: false,
+        autoHideMenuBar: true,
+        ...(process.platform === 'linux' ? { icon } : {}),
+        webPreferences: {
+            preload: join(__dirname, '../preload/index.js'),
+            sandbox: false,
+        },
+    })
+
+    win.on('ready-to-show', win.show)
+
+    let query = {
+        name: newName,
+    };
+
+    await win.loadFile(join(__dirname, '../renderer/import.html'), { query })
 
     // Check if dir exists
     if (existsSync(newPath)) {
@@ -173,34 +215,63 @@ ipcMain.handle('importModpack', async () => {
             ++numeral
 
         newPath += '_' + numeral
+        newName += '_' + numeral
     }
 
     // Make new dir
     await fs.mkdir(newPath, { recursive: true })
 
-    // Extract to this folder
-    let zip = new AdmZip(zipPath)
-    zip.extractAllTo(newPath, true)
-
     let newPathMC = join(newPath, 'minecraft')
 
-    // Download mods
-    for (let dirent of await readdir(join(newPathMC, 'mods/.index'))) {
-        let filePath = join(newPathMC, 'mods/.index', dirent.name)
+    // Extract to this folder
+    let zip = new AdmZip(zipPath)
+    await zip.extractAllToAsync(newPath, true)
 
-        if (dirent.name.endsWith('.toml')) {
-            let downloadLink = getDownloadFromTOML(await fs.readFile(filePath, 'utf-8'))
-            if (downloadLink)
-                await download(downloadLink, join(newPathMC, 'mods'))
-        }
+    // Collect directory listings
+    let modsDir = await readdir(join(newPathMC, 'mods/.index'))
+    let resourcepacksDir = await readdir(join(newPathMC, 'resourcepacks/.index'))
+    let shaderpacksDir = await readdir(join(newPathMC, 'shaderpacks'))
+    console.log(join(newPathMC, 'mods/.index'), modsDir);
+
+    // Count number of actions required (all downloads + extra actions)
+    let completed = 0;
+    let actions = 1 + [modsDir, resourcepacksDir, shaderpacksDir].reduce((a, b) => a + b.length, 0)
+
+    // Unzipping finished
+    win.webContents.send('import-progress', ++completed / actions)
+
+    // Download mods
+    for (let dirent of modsDir) {
+        if (dirent.name.endsWith('.toml'))
+            await tomlDownload(
+                join(newPathMC, 'mods/.index', dirent.name),
+                join(newPathMC, 'mods'))
+
+        win.webContents.send('import-progress', ++completed / actions)
     }
 
     // Download resourcepacks
+    for (let dirent of resourcepacksDir) {
+        if (dirent.name.endsWith('.toml'))
+            await tomlDownload(
+                join(newPathMC, 'resourcepacks/.index', dirent.name),
+                join(newPathMC, 'resourcepacks'))
+
+        win.webContents.send('import-progress', ++completed / actions)
+    }
 
     // Download shaderpacks
+    for (let dirent of shaderpacksDir) {
+        if (dirent.name.endsWith('.toml'))
+            await tomlDownload(
+                join(newPathMC, 'shaderpacks', dirent.name),
+                join(newPathMC, 'shaderpacks'))
 
-    console.log('Imported modpack from:', zipPath)
-    return `Successfully imported ${zipPath}`
+        win.webContents.send('import-progress', ++completed / actions)
+    }
+
+    win.webContents.send('import-msg', `Successfully imported ${newName}`)
+    console.log('Imported modpack from:', zipPath, 'to:', newPath)
 })
 
 function createWindow() {
