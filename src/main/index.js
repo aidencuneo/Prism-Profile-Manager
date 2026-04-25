@@ -1,16 +1,15 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import path, { join } from 'path'
 import { fileURLToPath } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { homedir } from 'os'
 import fs from 'fs/promises'
 import AdmZip from 'adm-zip'
+import { existsSync } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = join(__filename, '..')
-
-const zip = new AdmZip()
 
 let instancePath = join(homedir(), 'AppData/Roaming/PrismLauncher/instances')
 let downloadsPath = join(homedir(), 'Downloads')
@@ -19,9 +18,20 @@ async function readdir(path) {
     return await fs.readdir(path, { withFileTypes: true })
 }
 
+function getDownloadFromTOML(text) {
+    // Extract "url = 'https://...'" from file
+    return text.match(/url ?= ?'([^']*)'/)[1].trim()
+}
+
+async function download(url, path) {
+    const file = await fetch(url)
+    const buffer = await file.arrayBuffer()
+    await fs.writeFile(path, Buffer.from(buffer))
+}
+
 ipcMain.handle('openPath', (event, path) => {
-    shell.openPath(path);
-});
+    shell.openPath(path)
+})
 
 ipcMain.handle('getInstances', async () => {
     try {
@@ -41,7 +51,7 @@ ipcMain.handle('exportModpack', async (event, name) => {
     let pathMC = join(path, 'minecraft')
     let newPath = join(instancePath, name + '_EXPORT')
     let newPathMC = join(newPath, 'minecraft')
-    let zipPath = join(downloadsPath, name + '.zip');
+    let zipPath = join(downloadsPath, name + '.zip')
 
     // Open new window to show export details
     const win = new BrowserWindow({
@@ -61,7 +71,7 @@ ipcMain.handle('exportModpack', async (event, name) => {
     const query = {
         name,
         path: zipPath,
-    };
+    }
 
     await win.loadFile(join(__dirname, '../renderer/export.html'), { query })
 
@@ -72,7 +82,7 @@ ipcMain.handle('exportModpack', async (event, name) => {
         if (dirent.isFile())
             await fs.copyFile(join(path, dirent.name), join(newPath, dirent.name))
 
-    win.webContents.send('export-progress', 1 / 7);
+    win.webContents.send('export-progress', 1 / 7)
 
     // Copy all files and selected folders from the minecraft folder
     for (let dirent of await readdir(pathMC))
@@ -85,7 +95,7 @@ ipcMain.handle('exportModpack', async (event, name) => {
                 join(newPathMC, dirent.name),
                 { recursive: true })
 
-    win.webContents.send('export-progress', 2 / 7);
+    win.webContents.send('export-progress', 2 / 7)
 
     // Copy .index from mods and resourcepacks
     await fs.cp(
@@ -94,7 +104,7 @@ ipcMain.handle('exportModpack', async (event, name) => {
         { recursive: true }
     ).catch(() => {})
 
-    win.webContents.send('export-progress', 3 / 7);
+    win.webContents.send('export-progress', 3 / 7)
 
     await fs.cp(
         join(pathMC, 'resourcepacks/.index'),
@@ -102,7 +112,7 @@ ipcMain.handle('exportModpack', async (event, name) => {
         { recursive: true }
     ).catch(() => {})
 
-    win.webContents.send('export-progress', 4 / 7);
+    win.webContents.send('export-progress', 4 / 7)
 
     // Copy .toml files from shaderpacks
     await fs.mkdir(join(newPathMC, 'shaderpacks'), { recursive: true })
@@ -113,24 +123,77 @@ ipcMain.handle('exportModpack', async (event, name) => {
                 join(pathMC, 'shaderpacks', dirent.name),
                 join(newPathMC, 'shaderpacks', dirent.name))
 
-    win.webContents.send('export-progress', 5 / 7);
+    win.webContents.send('export-progress', 5 / 7)
 
     // Zip modpack
+    let zip = new AdmZip()
     zip.addLocalFolder(newPath)
     zip.writeZip(zipPath)
 
-    win.webContents.send('export-progress', 6 / 7);
+    win.webContents.send('export-progress', 6 / 7)
 
     // Delete temporary folder
     await fs.rm(newPath, { recursive: true })
 
-    win.webContents.send('export-progress', 7 / 7);
+    win.webContents.send('export-progress', 7 / 7)
 
-    console.log('\nDONE\n')
+    console.log('Exported to:', zipPath)
 })
 
 ipcMain.handle('importModpack', async () => {
-    console.log('Importing modpack')
+    console.log('Importing modpack...')
+
+    const result = await dialog.showOpenDialog({
+        defaultPath: downloadsPath,
+        properties: ['openFile'],
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+    })
+
+    if (result.canceled)
+        return false
+
+    let zipPath = result.filePaths[0]
+    let name = zipPath.split(/\/|\\/).pop().split('.')[0]
+    let newPath = join(instancePath, name)
+
+    // Check if dir exists
+    if (existsSync(newPath)) {
+        // Count highest numeral
+        let numeral = 1
+
+        while (existsSync(newPath + '_' + numeral))
+            ++numeral
+
+        newPath += '_' + numeral
+    }
+
+    // Make new dir
+    await fs.mkdir(newPath, { recursive: true })
+
+    // Extract to this folder
+    let zip = new AdmZip(zipPath)
+    zip.extractAllTo(newPath, true)
+
+    let newPathMC = join(newPath, 'minecraft')
+
+    // Download mods
+    for (let dirent of await readdir(join(newPathMC, 'mods/.index'))) {
+        let filePath = join(newPathMC, 'mods/.index', dirent.name)
+
+        if (dirent.name.endsWith('.toml')) {
+            let downloadLink = getDownloadFromTOML(filePath)
+
+            if (downloadLink)
+                await download(downloadLink, join(newPathMC, 'mods'))
+        }
+    }
+
+    // Download resourcepacks
+
+    // Download shaderpacks
+
+    console.log('Imported modpack from:', zipPath)
+    return `Successfully imported ${zipPath}`
 })
 
 function createWindow() {
