@@ -33,7 +33,11 @@ function getTOMLObject(text) {
             continue
 
         let key = line.substring(0, line.indexOf('=')).trim()
-        let value = eval(line.substring(line.indexOf('=') + 1).trim())
+        let value = line.substring(line.indexOf('=') + 1).trim();
+
+        try {
+            value = eval(value)
+        } catch (e) {}
 
         obj[key] = value
     }

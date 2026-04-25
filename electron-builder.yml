@@ -1,19 +1,18 @@
 appId: com.prism-profile-manager.aidenbc
 productName: Prism Profile Manager
 compression: maximum
-electronLanguages: ['en-AU']
+# electronLanguages: ['en-US']
 directories:
   buildResources: build
 files:
-  - out/**/*        # Or "dist/**/*" depending on your vite config
-  - resources/**/*  # Only if you have static assets here
-  - "package.json"  # Required for electron to find your 'main' entry
-  # - '!**/.vscode/*'
-  # - '!src/*'
-  # - '!electron.vite.config.{js,ts,mjs,cjs}'
-  # - '!svelte.config.mjs'
-  # - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  # - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  # - out/**/*
+  # - "package.json"
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!svelte.config.mjs'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
 asar: true
 asarUnpack:
   - resources/**
