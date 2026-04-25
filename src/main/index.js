@@ -46,7 +46,7 @@ ipcMain.handle('exportModpack', async (event, name) => {
     // Open new window to show export details
     const win = new BrowserWindow({
         width: 600,
-        height: 210,
+        height: 250,
         show: false,
         autoHideMenuBar: true,
         ...(process.platform === 'linux' ? { icon } : {}),
@@ -91,14 +91,16 @@ ipcMain.handle('exportModpack', async (event, name) => {
     await fs.cp(
         join(pathMC, 'mods/.index'),
         join(newPathMC, 'mods/.index'),
-        { recursive: true })
+        { recursive: true }
+    ).catch(() => {})
 
     win.webContents.send('export-progress', 3 / 7);
 
     await fs.cp(
         join(pathMC, 'resourcepacks/.index'),
         join(newPathMC, 'resourcepacks/.index'),
-        { recursive: true })
+        { recursive: true }
+    ).catch(() => {})
 
     win.webContents.send('export-progress', 4 / 7);
 
