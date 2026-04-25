@@ -18,9 +18,17 @@ async function readdir(path) {
     return await fs.readdir(path, { withFileTypes: true })
 }
 
-function getDownloadFromTOML(text) {
-    // Extract "url = 'https://...'" from file
-    return text.match(/url ?= ?'([^']*)'/)[1].trim()
+function getTOMLObject(text) {
+    let obj = {};
+
+    for (let line of text.split('\n')) {
+        key = line.substring(0, line.indexOf('=')).trim();
+        value = eval(line.substring(line.indexOf('=') + 1).trim());
+
+        obj[key] = value;
+    }
+
+    return obj;
 }
 
 async function download(url, path) {
@@ -181,8 +189,7 @@ ipcMain.handle('importModpack', async () => {
         let filePath = join(newPathMC, 'mods/.index', dirent.name)
 
         if (dirent.name.endsWith('.toml')) {
-            let downloadLink = getDownloadFromTOML(filePath)
-
+            let downloadLink = getDownloadFromTOML(await fs.readFile(filePath, 'utf-8'))
             if (downloadLink)
                 await download(downloadLink, join(newPathMC, 'mods'))
         }
