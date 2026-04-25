@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload';
 
 // Custom APIs for renderer
 const api = {
+    getLatestVersion: () => ipcRenderer.invoke('getLatestVersion'),
     openPath: path => ipcRenderer.invoke('openPath', path),
     getInstancePath: () => ipcRenderer.invoke('getInstancePath'),
     getInstances: () => ipcRenderer.invoke('getInstances'),

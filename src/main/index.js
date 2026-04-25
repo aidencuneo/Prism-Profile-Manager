@@ -7,6 +7,9 @@ import { homedir } from 'os'
 import fs from 'fs/promises'
 import AdmZip from 'adm-zip'
 import { existsSync, watch } from 'fs'
+import pkg from '../../package.json'
+
+const version = pkg.version
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = join(__filename, '..')
@@ -64,6 +67,25 @@ async function tomlDownload(path, destDir) {
     else if (data.mode.includes('curseforge'))
         await curseforgeDownload(data['project-id'], data['file-id'], destFile)
 }
+
+ipcMain.handle('getLatestVersion', async () => {
+    let githubURL = 'https://api.github.com/repos/aidencuneo/Prism-Profile-Manager/releases/latest'
+
+    let latestVersion = ''
+    let latestVersionURL = ''
+    let needsUpdate = false
+
+    try {
+        let res = await fetch(githubURL)
+        let json = await res.json()
+        
+        latestVersion = json.tag_name.replace('v', '')
+        latestVersionURL = 'https://github.com/aidencuneo/Prism-Profile-Manager/releases/latest'
+        needsUpdate = version != latestVersion
+    } catch (e) {}
+
+    return { latestVersion, latestVersionURL, needsUpdate }
+})
 
 ipcMain.handle('openPath', (event, path) => {
     return shell.openPath(path)
