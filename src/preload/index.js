@@ -3,9 +3,11 @@ import { electronAPI } from '@electron-toolkit/preload';
 
 // Custom APIs for renderer
 const api = {
+    openPath: path => ipcRenderer.invoke('openPath', path),
     getInstances: () => ipcRenderer.invoke('getInstances'),
     importModpack: () => ipcRenderer.invoke('importModpack'),
-    exportModpack: (name) => ipcRenderer.invoke('exportModpack', name),
+    exportModpack: name => ipcRenderer.invoke('exportModpack', name),
+    onExportProgress: callback => ipcRenderer.on('export-progress', (event, progress) => callback(progress)),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

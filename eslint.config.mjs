@@ -9,7 +9,9 @@ export default [
   {
     files: ['**/*.{jsx,svelte}'],
     rules: {
-      'svelte/no-unused-svelte-ignore': 'off'
+      'svelte/no-unused-svelte-ignore': 'off',
+      'indent': ['error', 2],
+      'comma-dangle': 'off',
     }
   },
   eslintConfigPrettier

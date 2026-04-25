@@ -1,62 +1,135 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { electronApp, optimizer, is } from '@electron-toolkit/utils';
-import icon from '../../resources/icon.png?asset';
-import { homedir } from 'os';
-import fs from 'fs/promises';
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { join } from 'path'
+import { fileURLToPath } from 'url'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
+import { homedir } from 'os'
+import fs from 'fs/promises'
+import AdmZip from 'adm-zip'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = join(__filename, '..');
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = join(__filename, '..')
 
-let instancePath = join(homedir(), 'AppData/Roaming/PrismLauncher/instances');
+const zip = new AdmZip()
+
+let instancePath = join(homedir(), 'AppData/Roaming/PrismLauncher/instances')
+let downloadsPath = join(homedir(), 'Downloads')
 
 async function readdir(path) {
-    return await fs.readdir(path, { withFileTypes: true });
+    return await fs.readdir(path, { withFileTypes: true })
 }
+
+ipcMain.handle('openPath', (event, path) => {
+    shell.openPath(path);
+});
 
 ipcMain.handle('getInstances', async () => {
     try {
-        let folders = await readdir(instancePath);
+        let folders = await readdir(instancePath)
 
         return folders
             .filter(e => e.isDirectory() && !e.name.startsWith('.'))
-            .map(e => e.name);
+            .map(e => e.name)
     } catch (error) {
-        return false;
+        return false
     }
-});
+})
 
 ipcMain.handle('exportModpack', async (event, name) => {
-    let path = join(instancePath, name);
-    let pathMC = join(path, 'minecraft');
-    let newPath = join(instancePath, name + '_EXPORT');
-    let newPathMC = join(newPath, 'minecraft');
+    // Remember the paths needed for exporting
+    let path = join(instancePath, name)
+    let pathMC = join(path, 'minecraft')
+    let newPath = join(instancePath, name + '_EXPORT')
+    let newPathMC = join(newPath, 'minecraft')
+    let zipPath = join(downloadsPath, name + '.zip');
 
-    await fs.mkdir(newPathMC, { recursive: true });
-    console.log('Exporting modpack:', name);
+    // Open new window to show export details
+    const win = new BrowserWindow({
+        width: 600,
+        height: 210,
+        show: false,
+        autoHideMenuBar: true,
+        ...(process.platform === 'linux' ? { icon } : {}),
+        webPreferences: {
+            preload: join(__dirname, '../preload/index.js'),
+            sandbox: false,
+        },
+    })
+
+    win.on('ready-to-show', win.show)
+
+    const query = {
+        name,
+        path: zipPath,
+    };
+
+    await win.loadFile(join(__dirname, '../renderer/export.html'), { query })
+
+    await fs.mkdir(newPathMC, { recursive: true })
 
     // Copy root files
-    for (let dirent of await readdir(path)) {
-        console.log(dirent);
+    for (let dirent of await readdir(path))
         if (dirent.isFile())
             await fs.copyFile(join(path, dirent.name), join(newPath, dirent.name))
-    }
 
-    // Copy everything in minecraft folder except:
-    //   mods, resourcepacks, shaderpacks
-    for (let dirent of await readdir(pathMC)) {
-        console.log(dirent);
-        if (!['mods', 'resourcepacks', 'shaderpacks'].includes(dirent.name))
-            await fs.cp(join(pathMC, dirent.name), join(newPathMC, dirent.name));
-    }
+    win.webContents.send('export-progress', 1 / 7);
 
-    console.log('\nDONE\n');
-});
+    // Copy all files and selected folders from the minecraft folder
+    for (let dirent of await readdir(pathMC))
+        if (dirent.isFile() || [
+            'config',
+            'data',
+        ].includes(dirent.name))
+            await fs.cp(
+                join(pathMC, dirent.name),
+                join(newPathMC, dirent.name),
+                { recursive: true })
+
+    win.webContents.send('export-progress', 2 / 7);
+
+    // Copy .index from mods and resourcepacks
+    await fs.cp(
+        join(pathMC, 'mods/.index'),
+        join(newPathMC, 'mods/.index'),
+        { recursive: true })
+
+    win.webContents.send('export-progress', 3 / 7);
+
+    await fs.cp(
+        join(pathMC, 'resourcepacks/.index'),
+        join(newPathMC, 'resourcepacks/.index'),
+        { recursive: true })
+
+    win.webContents.send('export-progress', 4 / 7);
+
+    // Copy .toml files from shaderpacks
+    await fs.mkdir(join(newPathMC, 'shaderpacks'), { recursive: true })
+
+    for (let dirent of await readdir(join(pathMC, 'shaderpacks')))
+        if (dirent.isFile() && dirent.name.endsWith('.toml'))
+            await fs.copyFile(
+                join(pathMC, 'shaderpacks', dirent.name),
+                join(newPathMC, 'shaderpacks', dirent.name))
+
+    win.webContents.send('export-progress', 5 / 7);
+
+    // Zip modpack
+    zip.addLocalFolder(newPath)
+    zip.writeZip(zipPath)
+
+    win.webContents.send('export-progress', 6 / 7);
+
+    // Delete temporary folder
+    await fs.rm(newPath, { recursive: true })
+
+    win.webContents.send('export-progress', 7 / 7);
+
+    console.log('\nDONE\n')
+})
 
 ipcMain.handle('importModpack', async () => {
-    console.log('Importing modpack');
-});
+    console.log('Importing modpack')
+})
 
 function createWindow() {
     // Create the browser window.
@@ -105,15 +178,15 @@ app.whenReady().then(() => {
     })
 
     // IPC test
-    ipcMain.on('ping', () => console.log('pong'));
+    ipcMain.on('ping', () => console.log('pong'))
 
-    createWindow();
+    createWindow()
 
     app.on('activate', function () {
         // On macOS it's common to re-create a window in the app when the
         // dock icon is clicked and there are no other windows open.
         if (BrowserWindow.getAllWindows().length === 0)
-            createWindow();
+            createWindow()
     })
 })
 

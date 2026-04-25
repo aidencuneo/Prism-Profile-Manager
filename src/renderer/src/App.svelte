@@ -30,8 +30,4 @@
         font-size: 30px;
         padding: 20px 20px 20px 20px;
     }
-
-    p {
-        font-size: 30px;
-    }
 </style>

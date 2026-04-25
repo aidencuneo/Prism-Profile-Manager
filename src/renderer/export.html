@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exporting...</title>
+    <link rel="stylesheet" href="./index.css">
+
+    <style>
+a, a:active, a:link, a:visited {
+    color: white;
+    text-decoration: underline;
+}
+
+body {
+    text-align: center;
+    font-size: 18px;
+}
+
+#title {
+    padding: 15px 5px;
+}
+
+#progress {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 40px;
+}
+
+#progress-bg {
+    position: absolute;
+    left: 0;
+    width: 0%;
+    height: 40px;
+    background: #96DB59;
+}
+
+#progress-text {
+    position: relative;
+    color: #484848;
+}
+
+#finish-msg {
+    padding: 15px 5px;
+    height: 30px;
+}
+    </style>
+</head>
+<body>
+    <div id="title"></div>
+    <div id="progress">
+        <div id="progress-bg"></div>
+        <div id="progress-text">0%</div>
+    </div>
+    <div id="finish-msg"></div>
+
+    <script>
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
+const modpackName = urlParams.get('name');
+const modpackPath = urlParams.get('path');
+
+const titleElem = document.getElementById('title');
+const progressBgDiv = document.getElementById('progress-bg');
+const progressTextDiv = document.getElementById('progress-text');
+const finishMsgDiv = document.getElementById('finish-msg');
+
+titleElem.textContent = `Exporting ${modpackName}...`;
+document.title = `Exporting ${modpackName}...`;
+
+window.api.onExportProgress(progress => {
+    let roundedProgress = Math.round(1000 * progress) / 10;
+
+    titleElem.textContent = document.title = `(${roundedProgress}%) Exporting ${modpackName}... `;
+    progressTextDiv.textContent = roundedProgress + '%';
+    progressBgDiv.style.width = roundedProgress + '%';
+
+    if (progress >= 1)
+        finishMsgDiv.innerHTML = `Exported to: <a onclick="window.api.openPath(modpackPath + '/..')">${modpackPath}</a>`;
+});
+    </script>
+</body>
+</html>
