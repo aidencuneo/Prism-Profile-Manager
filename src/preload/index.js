@@ -4,7 +4,9 @@ import { electronAPI } from '@electron-toolkit/preload';
 // Custom APIs for renderer
 const api = {
     openPath: path => ipcRenderer.invoke('openPath', path),
+    getInstancePath: () => ipcRenderer.invoke('getInstancePath'),
     getInstances: () => ipcRenderer.invoke('getInstances'),
+    onInstancesUpdated: callback => ipcRenderer.on('instances-updated', event => callback()),
     importModpack: () => ipcRenderer.invoke('importModpack'),
     exportModpack: name => ipcRenderer.invoke('exportModpack', name),
     onImportProgress: callback => ipcRenderer.on('import-progress', (event, progress) => callback(progress)),

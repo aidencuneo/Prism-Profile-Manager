@@ -6,13 +6,15 @@ import icon from '../../resources/icon.png?asset'
 import { homedir } from 'os'
 import fs from 'fs/promises'
 import AdmZip from 'adm-zip'
-import { existsSync } from 'fs'
+import { existsSync, watch } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = join(__filename, '..')
 
 let instancePath = join(homedir(), 'AppData/Roaming/PrismLauncher/instances')
 let downloadsPath = join(homedir(), 'Downloads')
+
+let mainWindow = null;
 
 async function readdir(path) {
     try {
@@ -61,6 +63,10 @@ async function tomlDownload(path, destDir) {
 
 ipcMain.handle('openPath', (event, path) => {
     shell.openPath(path)
+})
+
+ipcMain.handle('getInstancePath', () => {
+    return instancePath;
 })
 
 ipcMain.handle('getInstances', async () => {
@@ -181,9 +187,24 @@ ipcMain.handle('importModpack', async () => {
         return false
 
     let zipPath = result.filePaths[0]
-    let name = zipPath.split(/\/|\\/).pop().split('.')[0]
+    let name = path.parse(zipPath).name;
     let newPath = join(instancePath, name)
     let newName = name // This can be modified
+
+    // Check if dir exists
+    if (existsSync(newPath)) {
+        // Count highest numeral
+        let numeral = 1
+
+        while (existsSync(newPath + '_' + numeral))
+            ++numeral
+
+        newPath += '_' + numeral
+        newName += '_' + numeral
+    }
+
+    // Make new dir
+    await fs.mkdir(newPath, { recursive: true })
 
     // Open new window to show import details
     const win = new BrowserWindow({
@@ -205,21 +226,6 @@ ipcMain.handle('importModpack', async () => {
     };
 
     await win.loadFile(join(__dirname, '../renderer/import.html'), { query })
-
-    // Check if dir exists
-    if (existsSync(newPath)) {
-        // Count highest numeral
-        let numeral = 1
-
-        while (existsSync(newPath + '_' + numeral))
-            ++numeral
-
-        newPath += '_' + numeral
-        newName += '_' + numeral
-    }
-
-    // Make new dir
-    await fs.mkdir(newPath, { recursive: true })
 
     let newPathMC = join(newPath, 'minecraft')
 
@@ -274,9 +280,14 @@ ipcMain.handle('importModpack', async () => {
     console.log('Imported modpack from:', zipPath, 'to:', newPath)
 })
 
+watch(instancePath, (eventType, filename) => {
+    console.log(eventType, filename)
+    mainWindow.webContents.send('instances-updated')
+})
+
 function createWindow() {
     // Create the browser window.
-    const mainWindow = new BrowserWindow({
+    mainWindow = new BrowserWindow({
         width: 900,
         height: 670,
         show: false,

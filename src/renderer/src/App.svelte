@@ -2,8 +2,11 @@
     import { onMount } from 'svelte';
     import Modpack from './components/Modpack.svelte';
     import Button from './components/Button.svelte';
+    import fs from 'fs';
 
     const api = window.api;
+
+    let instPath = api.getInstancePath();
     let instances = $state([]);
 
     async function importModpack() {
@@ -11,6 +14,11 @@
     }
 
     onMount(async () => {
+        instances = await api.getInstances();
+    });
+
+    api.onInstancesUpdated(async () => {
+        console.log('updated!');
         instances = await api.getInstances();
     });
 </script>
